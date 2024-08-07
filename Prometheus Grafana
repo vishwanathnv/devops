@@ -1,0 +1,211 @@
+1. Create one directry called promethues
+2. Create namespace - kubectl create namespace my-prometheus
+3. In side prometheus directly create 3 files 1 server-pv.yml 2 push-pv.yml  3 alert-pv.yml 
+4. And 3 directrory create 1 server-data 2 push-data 3 alert-data and all directly give chmod 777 permission
+
+Use this value in  push-pv.yml files
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-push-test
+  labels:
+    name: prometheus-push-test
+spec:
+  storageClassName: prometheus-test
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPpkh:
+    ppkh: "/root/prometheus/push-data”.       (Change value)
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-push-test
+  namespace: my-pro
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: prometheus-test
+
+
+
+use this value in alert-pv.yml file
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-alert-test
+  labels:
+    name: prometheus-alert-test
+spec:
+  storageClassName: prometheus-test
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPpkh:
+    ppkh: "/root/prometheus/alert-data"
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-alert-test
+  namespace: prometheus
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: prometheus-test
+
+
+use this value in server-pv.yml file
+
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: prometheus-server-test
+  labels:
+    name: prometheus-server-test
+spec:
+  storageClassName: prometheus-test
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPpkh:
+    ppkh: "/root/prometheus/server-data"
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-server-test
+  namespace: prometheus
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: prometheus-test
+
+
+
+Install helm and add repository 
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+helm install prometheus-2 prometheus-community/prometheus  --namespace=prometheus            ( if you have values use below command )
+
+
+helm show values prometheus-community/prometheus > values.yml   ( already we have values shortcut)
+
+alertmanager:
+  persistentVolume:
+    existingClaim: "prometheus-alert-test"
+    size: "20Gi"
+
+server:
+  persistentVolume:
+    existingClaim: "prometheus-server-test"
+    size: "20Gi"
+
+pushgateway:
+  persistentVolume:
+    existingClaim: "prometheus-push-test"
+    size: "20Gi"
+
+
+helm install -f new_values.yml prometheus-1 prometheus-community/prometheus --namespace=prometheus
+
+kubectl -n prometheus expose service prometheus-1-server --type=NodePort --target-port=9090 --name=prometheus-server-ext
+
+
+ Grafana intall
+Create directory grafana 
+Create grafana-data-new directory
+
+Pv-grafana.yml file 
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-data-test
+  labels:
+    name: grafana-data-test
+spec:
+  storageClassName: grafana-test
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPpkh:
+    ppkh: "/root/new-grafana/grafana-data-test"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-test
+  namespace: my-pro
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: grafana-test
+
+
+
+ #####new-values.yml below
+
+service:
+  type: NodePort
+persistence:
+  enabled: true
+  size: "50Gi"
+  existingClaim: "grafana-data"
+adminPassword: "Test@123"
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server.prometheus.svc.cluster.local
+      access: proxy
+      isDefault: true
+
+helm show values grafana/grafana >values.yml ( already we have values shortcut)
+
+helm repo add grafana https://grafana.github.io/helm-charts
+
+ 
+helm install -f grafana_values.yml grafana-1 grafana/grafana --namespace grafana
+
+kubectl expose service grafana — type=NodePort — target-port=3000 — name=grafana-ext -n grafana
+
+######### Importent points ###################
+
+1. if grafana is not showing values change the data-source in the edit options
+2. and add the node labals exaple app=dev-hetzner in the edit window option
